@@ -3,7 +3,8 @@ use solana_program::{msg, program_error::ProgramError};
 
 #[derive(Debug)]
 pub enum PayersInstruction {
-    CreatePDA {},
+    CreatePDAWithSystemAccNotFeePayer {},
+    CreatePDAWithOwnedAcc {},
 }
 
 impl PayersInstruction {
@@ -15,7 +16,8 @@ impl PayersInstruction {
             .ok_or(errors::PayersError::InvalidInstruction)?;
 
         Ok(match tag {
-            0 => Self::CreatePDA {},
+            0 => Self::CreatePDAWithSystemAccNotFeePayer {},
+            1 => Self::CreatePDAWithOwnedAcc {},
             _ => return Err(errors::PayersError::InvalidInstruction.into()),
         })
     }

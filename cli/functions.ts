@@ -3,10 +3,9 @@ import { Buffer } from 'buffer';
 import { programId, SIGNER } from './constants';
 import * as utils from './utils';
 
-export const createPDAs = async (
+export const createPDAWithSystemAccNotFeePayer = async (
   connection: web3.Connection,
-  firstCreationPayer: web3.Keypair,
-  secondCreationPayer: web3.Keypair,
+  creationPayer: web3.Keypair,
   feePayer: web3.Keypair = SIGNER
 ) => {
   let instructionNumber = 0;
@@ -15,28 +14,17 @@ export const createPDAs = async (
 
   dataBuffer = utils.packUInt8(dataBuffer, instructionNumber);
 
-  let [first_pda] = web3.PublicKey.findProgramAddressSync(
-    [Buffer.from('first_pda'), firstCreationPayer.publicKey.toBuffer()],
-    programId
-  );
-
-  let [second_pda] = web3.PublicKey.findProgramAddressSync(
-    [Buffer.from('second_pda'), secondCreationPayer.publicKey.toBuffer()],
+  let [pda] = web3.PublicKey.findProgramAddressSync(
+    [Buffer.from('pda_sys_acc'), creationPayer.publicKey.toBuffer()],
     programId
   );
 
   const instruction = new web3.TransactionInstruction({
     programId,
     keys: [
-      { pubkey: first_pda, isSigner: false, isWritable: true },
-      { pubkey: second_pda, isSigner: false, isWritable: true },
+      { pubkey: pda, isSigner: false, isWritable: true },
       {
-        pubkey: firstCreationPayer.publicKey,
-        isSigner: true,
-        isWritable: true,
-      },
-      {
-        pubkey: secondCreationPayer.publicKey,
+        pubkey: creationPayer.publicKey,
         isSigner: true,
         isWritable: true,
       },
@@ -52,7 +40,49 @@ export const createPDAs = async (
   let txReceipt = await web3.sendAndConfirmTransaction(
     connection,
     new web3.Transaction().add(instruction),
-    [feePayer, firstCreationPayer, secondCreationPayer]
+    [feePayer, creationPayer]
+  );
+  return txReceipt;
+};
+
+export const createPDAWithOwnedAccNotFeePayer = async (
+  connection: web3.Connection,
+  creationPayer: web3.Keypair,
+  feePayer: web3.Keypair = SIGNER
+) => {
+  let instructionNumber = 1;
+
+  let dataBuffer = Buffer.from('');
+
+  dataBuffer = utils.packUInt8(dataBuffer, instructionNumber);
+
+  let [pda] = web3.PublicKey.findProgramAddressSync(
+    [Buffer.from('pda_owned_acc'), creationPayer.publicKey.toBuffer()],
+    programId
+  );
+
+  const instruction = new web3.TransactionInstruction({
+    programId,
+    keys: [
+      { pubkey: pda, isSigner: false, isWritable: true },
+      {
+        pubkey: creationPayer.publicKey,
+        isSigner: true,
+        isWritable: true,
+      },
+      {
+        pubkey: web3.SystemProgram.programId,
+        isSigner: false,
+        isWritable: true,
+      },
+    ],
+    data: dataBuffer,
+  });
+
+  let txReceipt = await web3.sendAndConfirmTransaction(
+    connection,
+    new web3.Transaction().add(instruction),
+    [feePayer, creationPayer]
   );
   return txReceipt;
 };

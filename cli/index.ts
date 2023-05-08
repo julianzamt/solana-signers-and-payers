@@ -1,14 +1,17 @@
 import * as web3 from '@solana/web3.js';
-import { createPDAs } from './functions';
+import {
+  createPDAWithOwnedAccNotFeePayer,
+  createPDAWithSystemAccNotFeePayer,
+} from './functions';
+import { SIGNER, programId } from './constants';
 
 const connection = new web3.Connection('http://127.0.0.1:8899');
 
 async function main() {
-  let firstCreationPayer = web3.Keypair.generate();
-  let secondCreationPayer = web3.Keypair.generate();
+  let systemAccCreationPayer = web3.Keypair.generate();
 
   let txhash = await connection.requestAirdrop(
-    firstCreationPayer.publicKey,
+    systemAccCreationPayer.publicKey,
     1e9
   );
 
@@ -20,8 +23,39 @@ async function main() {
     signature: txhash,
   });
 
+  await createPDAWithSystemAccNotFeePayer(connection, systemAccCreationPayer);
+
+  console.log('Creating owned account...');
+  let ownedAccCreationPayer = web3.Keypair.generate();
+
+  console.log('pubkey: ', ownedAccCreationPayer.publicKey.toBase58());
+
+  let space = 1;
+
+  const rentExemptionAmount =
+    await connection.getMinimumBalanceForRentExemption(space);
+
+  const createAccountParams = {
+    fromPubkey: SIGNER.publicKey,
+    newAccountPubkey: ownedAccCreationPayer.publicKey,
+    lamports: rentExemptionAmount,
+    space,
+    programId: programId,
+  };
+
+  const createAccountTransaction = new web3.Transaction().add(
+    web3.SystemProgram.createAccount(createAccountParams)
+  );
+
+  await web3.sendAndConfirmTransaction(connection, createAccountTransaction, [
+    SIGNER,
+    ownedAccCreationPayer,
+  ]);
+
+  console.log('Airdropping owned account...');
+
   txhash = await connection.requestAirdrop(
-    secondCreationPayer.publicKey,
+    ownedAccCreationPayer.publicKey,
     1e9
   );
 
@@ -33,7 +67,7 @@ async function main() {
     signature: txhash,
   });
 
-  await createPDAs(connection, firstCreationPayer, secondCreationPayer);
+  await createPDAWithOwnedAccNotFeePayer(connection, ownedAccCreationPayer);
 }
 
 main()
